@@ -52,12 +52,22 @@ class CausalSelfAttention(nn.Module):
 
     def forward(self, x, kv_cache=None):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
-
-        # calculate query, key, values for all heads in batch and move head forward to be the batch dim
+        assert T == 1, "kv_caching enabled"
         q, k, v  = self.c_attn(x).split(self.n_embd, dim=2)
         k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
         q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
         v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
+
+        if kv_cache is None:
+            # first step: initialize cache
+            k_cache = k
+            v_cache = v
+        else:
+            # append to existing cache
+            k_prev, v_prev = kv_cache
+            k_cache = torch.cat([k_prev, k], dim=2)
+            v_cache = torch.cat([v_prev, v], dim=2)
+
 
         # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
         if self.flash:
@@ -65,16 +75,16 @@ class CausalSelfAttention(nn.Module):
             y = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=self.dropout if self.training else 0, is_causal=True)
         else:
             # manual implementation of attention
-            att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
-            att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
+            q_last = q  # (B, nh, 1, hs)
+            att = (q_last @ k_cache.transpose(-2, -1)) * (1.0 / math.sqrt(k_cache.size(-1)))
             att = F.softmax(att, dim=-1)
             att = self.attn_dropout(att)
-            y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
+            y = att @ v_cache
         y = y.transpose(1, 2).contiguous().view(B, T, C) # re-assemble all head outputs side by side
 
         # output projection
         y = self.resid_dropout(self.c_proj(y))
-        return y, kv_cache
+        return y, (k_cache, v_cache)
 
 class MLP(nn.Module):
 
@@ -311,27 +321,46 @@ class GPT(nn.Module):
     @torch.no_grad()
     def generate(self, idx, max_new_tokens, temperature=1.0, top_k=None):
         """
-        Take a conditioning sequence of indices idx (LongTensor of shape (b,t)) and complete
-        the sequence max_new_tokens times, feeding the predictions back into the model each time.
-        Most likely you'll want to make sure to be in model.eval() mode of operation for this.
+        idx: (B, T_prompt) initial prompt tokens
+        returns: (B, T_prompt + max_new_tokens)
         """
-        kv_cache = None
-        for _ in range(max_new_tokens):
-            # if the sequence context is growing too long we must crop it at block_size
-            idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size:]
-            # forward the model to get the logits for the index in the sequence
-            logits, _, kv_cache = self(idx_cond)
-            # pluck the logits at the final step and scale by desired temperature
-            logits = logits[:, -1, :] / temperature
-            # optionally crop the logits to only the top k options
-            if top_k is not None:
-                v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
-                logits[logits < v[:, [-1]]] = -float('Inf')
-            # apply softmax to convert logits to (normalized) probabilities
-            probs = F.softmax(logits, dim=-1)
-            # sample from the distribution
-            idx_next = torch.multinomial(probs, num_samples=1)
-            # append sampled index to the running sequence and continue
-            idx = torch.cat((idx, idx_next), dim=1)
+        device = idx.device
+        B, T_prompt = idx.size()
 
-        return idx
+        # ------------------------------------------------------------
+        # Phase 1: ingest prompt token-by-token to build KV cache
+        # ------------------------------------------------------------
+        kv_cache = None
+
+        for t in range(T_prompt):
+            # feed one token at a time
+            idx_t = idx[:, t:t+1]          # (B, 1)
+            logits, _, kv_cache = self(idx_t, kv_cache=kv_cache)
+
+        # last token of the prompt
+        idx_last = idx[:, -1:]             # (B, 1)
+
+        # ------------------------------------------------------------
+        # Phase 2: autoregressive decoding with KV cache
+        # ------------------------------------------------------------
+        generated = [idx]
+
+        for _ in range(max_new_tokens):
+            logits, _, kv_cache = self(idx_last, kv_cache=kv_cache)
+
+            # take logits for the last position
+            logits = logits[:, -1, :] / temperature
+
+            if top_k is not None:
+                k = min(top_k, logits.size(-1))
+                v, _ = torch.topk(logits, k)
+                logits[logits < v[:, [-1]]] = -float('inf')
+
+            probs = F.softmax(logits, dim=-1)
+            idx_next = torch.multinomial(probs, num_samples=1)  # (B, 1)
+
+            generated.append(idx_next)
+            idx_last = idx_next
+
+        return torch.cat(generated, dim=1)
+
