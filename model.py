@@ -15,6 +15,7 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 import sys
+import sys
 
 class LayerNorm(nn.Module):
     """ LayerNorm but with an optional bias. PyTorch doesn't support simply bias=False """
@@ -186,12 +187,15 @@ class GPT(nn.Module):
         print(f"forward: b={b}, t={t}", file=sys.stderr)
         if kv_cache is not None:
             print(kv_cache[0][0].shape[2], file=sys.stderr)
+        print(f"forward: b={b}, t={t}", file=sys.stderr)
+        if kv_cache is not None:
+            print(kv_cache[0][0].shape[2], file=sys.stderr)
         assert t <= self.config.block_size, f"Cannot forward sequence of length {t}, block size is only {self.config.block_size}"
         # pos = torch.arange(0, t, dtype=torch.long, device=device) # shape (t)
         if kv_cache is None:
             pos = torch.tensor([0], dtype=torch.long, device=device) # shape (1)
         else:
-            pos = torch.tensor([min(kv_cache[0][0].shape[2], 199)], dtype=torch.long, device=device) # shape (1)
+            pos = torch.tensor([min(kv_cache[0][0].shape[2], self.config.block_size - 1)], dtype=torch.long, device=device) # shape (1)
         print(f"pos shape: {pos.shape}", pos, file=sys.stderr)
         print(f"idx shape: {idx.shape}", idx, file=sys.stderr)
 
