@@ -11,9 +11,9 @@ from model import GPTConfig, GPT
 
 # -----------------------------------------------------------------------------
 init_from = 'resume' # either 'resume' (from an out_dir) or a gpt2 variant (e.g. 'gpt2-xl')
-out_dir = 'out' # ignored if init_from is not 'resume'
-start = "\n" # or "<|endoftext|>" or etc. Can also specify a file, use as: "FILE:prompt.txt"
-num_samples = 10 # number of samples to draw
+out_dir = 'out-shakespeare-char' # ignored if init_from is not 'resume'
+start = "FILE:prompt.txt" # or "<|endoftext|>" or etc. Can also specify a file, use as: "FILE:prompt.txt"
+num_samples = 1 # number of samples to draw
 max_new_tokens = 200 # number of tokens generated in each sample
 temperature = 0.8 # 1.0 = no change, < 1.0 = less random, > 1.0 = more random, in predictions
 top_k = 200 # retain only the top_k most likely tokens, clamp others to have 0 probability
@@ -81,67 +81,131 @@ if start.startswith('FILE:'):
 start_ids = encode(start)
 x = (torch.tensor(start_ids, dtype=torch.long, device=device)[None, ...])
 
-# # run generation
-# with torch.no_grad():
-#     with ctx:
-#         for k in range(num_samples):
-#             y = model.generate(x, max_new_tokens, temperature=temperature, top_k=top_k)
-#             print(decode(y[0].tolist()))
-#             print('---------------')
+# run generation
+with torch.no_grad():
+    with ctx:
+        for k in range(num_samples):
+            y = model.generate(x, max_new_tokens, temperature=temperature, top_k=top_k)
+            print(decode(y[0].tolist()))
+            print('---------------')
 
-prompt_lengths = [8, 16, 32, 64, 128, 256]
-results = []
+# prompt_lengths = [8, 16, 32, 64, 128, 256]
+# results = []
 
-for P in prompt_lengths:
-    print(f"Generating with prompt length {P}...")
-    prompt = "aa" * P
-    print(len(prompt))
+# for P in prompt_lengths:
+#     print(f"Generating with prompt length {P}...")
+#     prompt = "aa" * P
+#     print(len(prompt))
 
-    # encode characters using stoi
-    x = torch.tensor(
-        [stoi[c] for c in prompt],
-        dtype=torch.long,
-        device=device
-    )[None, ...]
+#     # encode characters using stoi
+#     x = torch.tensor(
+#         [stoi[c] for c in prompt],
+#         dtype=torch.long,
+#         device=device
+#     )[None, ...]
 
 
-    with torch.no_grad():
-        with ctx:
-            for k in range(num_samples):
+#     with torch.no_grad():
+#         with ctx:
+#             for k in range(num_samples):
 
-                if device.startswith("cuda"):
-                    torch.cuda.synchronize()
-                t0 = time.perf_counter()
+#                 if device.startswith("cuda"):
+#                     torch.cuda.synchronize()
+#                 t0 = time.perf_counter()
 
-                y = model.generate(
-                    x,
-                    max_new_tokens,
-                    temperature=temperature,
-                    top_k=top_k
-                )
+#                 y = model.generate(
+#                     x,
+#                     max_new_tokens,
+#                     temperature=temperature,
+#                     top_k=top_k
+#                 )
 
-                if device.startswith("cuda"):
-                    torch.cuda.synchronize()
-                t1 = time.perf_counter()
+#                 if device.startswith("cuda"):
+#                     torch.cuda.synchronize()
+#                 t1 = time.perf_counter()
 
-                total_time = t1 - t0
-                avg_time_per_token = total_time / max_new_tokens
+#                 total_time = t1 - t0
+#                 avg_time_per_token = total_time / max_new_tokens
 
-                peak_mem_mb = None
-                if device.startswith("cuda"):
-                    peak_mem_mb = torch.cuda.max_memory_allocated() / (1024 ** 2)
+#                 peak_mem_mb = None
+#                 if device.startswith("cuda"):
+#                     peak_mem_mb = torch.cuda.max_memory_allocated() / (1024 ** 2)
 
-                # print(decode(y[0].tolist()))
-                print('---------------')
-                print(f"Total inference time: {total_time:.4f} s")
-                print(f"Avg time per token:   {avg_time_per_token*1000:.2f} ms")
-                if peak_mem_mb is not None:
-                    print(f"Peak GPU memory:      {peak_mem_mb:.2f} MB")
-                print('===============')
-    # run generation (code above)
-    results.append({
-        "prompt_len": x.shape[1],
-        "total_time": total_time,
-        "avg_token_time": avg_time_per_token,
-        "peak_mem_mb": peak_mem_mb
-    })
+#                 # print(decode(y[0].tolist()))
+#                 print('---------------')
+#                 print(f"Total inference time: {total_time:.4f} s")
+#                 print(f"Avg time per token:   {avg_time_per_token*1000:.2f} ms")
+#                 if peak_mem_mb is not None:
+#                     print(f"Peak GPU memory:      {peak_mem_mb:.2f} MB")
+#                 print('===============')
+#     # run generation (code above)
+#     results.append({
+#         "prompt_len": x.shape[1],
+#         "total_time": total_time,
+#         "avg_token_time": avg_time_per_token,
+#         "peak_mem_mb": peak_mem_mb
+#     })
+# run generation
+with torch.no_grad():
+    with ctx:
+        for k in range(num_samples):
+            y = model.generate(x, max_new_tokens, temperature=temperature, top_k=top_k)
+            print(decode(y[0].tolist()))
+            print('---------------')
+
+# prompt_lengths = [8, 16, 32, 64, 128, 256]
+# results = []
+
+# for P in prompt_lengths:
+#     print(f"Generating with prompt length {P}...")
+#     prompt = "aa" * P
+#     print(len(prompt))
+
+#     # encode characters using stoi
+#     x = torch.tensor(
+#         [stoi[c] for c in prompt],
+#         dtype=torch.long,
+#         device=device
+#     )[None, ...]
+
+
+#     with torch.no_grad():
+#         with ctx:
+#             for k in range(num_samples):
+
+#                 if device.startswith("cuda"):
+#                     torch.cuda.synchronize()
+#                 t0 = time.perf_counter()
+
+#                 y = model.generate(
+#                     x,
+#                     max_new_tokens,
+#                     temperature=temperature,
+#                     top_k=top_k
+#                 )
+
+#                 if device.startswith("cuda"):
+#                     torch.cuda.synchronize()
+#                 t1 = time.perf_counter()
+
+#                 total_time = t1 - t0
+#                 avg_time_per_token = total_time / max_new_tokens
+
+#                 peak_mem_mb = None
+#                 if device.startswith("cuda"):
+#                     peak_mem_mb = torch.cuda.max_memory_allocated() / (1024 ** 2)
+
+#                 # print(decode(y[0].tolist()))
+#                 print('---------------')
+#                 print(f"Total inference time: {total_time:.4f} s")
+#                 print(f"Avg time per token:   {avg_time_per_token*1000:.2f} ms")
+#                 if peak_mem_mb is not None:
+#                     print(f"Peak GPU memory:      {peak_mem_mb:.2f} MB")
+#                 print('===============')
+#     # run generation (code above)
+#     results.append({
+#         "prompt_len": x.shape[1],
+#         "total_time": total_time,
+#         "avg_token_time": avg_time_per_token,
+#         "peak_mem_mb": peak_mem_mb
+#     })
