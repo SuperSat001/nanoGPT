@@ -191,11 +191,12 @@ class GPT(nn.Module):
         if kv_cache is not None:
             print(kv_cache[0][0].shape[2], file=sys.stderr)
         assert t <= self.config.block_size, f"Cannot forward sequence of length {t}, block size is only {self.config.block_size}"
-        # pos = torch.arange(0, t, dtype=torch.long, device=device) # shape (t)
-        if kv_cache is None:
-            pos = torch.tensor([0], dtype=torch.long, device=device) # shape (1)
-        else:
-            pos = torch.tensor([min(kv_cache[0][0].shape[2], self.config.block_size - 1)], dtype=torch.long, device=device) # shape (1)
+        pos = torch.arange(0, t, dtype=torch.long, device=device) # shape (t)
+        pos = torch.zeros_like(pos)
+        # if kv_cache is None:
+        #     pos = torch.tensor([0], dtype=torch.long, device=device) # shape (1)
+        # else:
+        #     pos = torch.tensor([min(kv_cache[0][0].shape[2], self.config.block_size - 1)], dtype=torch.long, device=device) # shape (1)
         print(f"pos shape: {pos.shape}", pos, file=sys.stderr)
         print(f"idx shape: {idx.shape}", idx, file=sys.stderr)
 
