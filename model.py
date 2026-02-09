@@ -10,6 +10,7 @@ https://github.com/huggingface/transformers/blob/main/src/transformers/models/gp
 import math
 import inspect
 from dataclasses import dataclass
+import sys
 
 import torch
 import torch.nn as nn
@@ -45,7 +46,7 @@ class CausalSelfAttention(nn.Module):
         # self.flash = hasattr(torch.nn.functional, 'scaled_dot_product_attention')
         self.flash = False
         if not self.flash:
-            print("WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0")
+            print("WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0", file=sys.stderr)
             # causal mask to ensure that attention is only applied to the left in the input sequence
             self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
                                         .view(1, 1, config.block_size, config.block_size))
@@ -171,8 +172,14 @@ class GPT(nn.Module):
     def forward(self, idx, targets=None):
         device = idx.device
         b, t = idx.size()
+        print("forward called", file=sys.stderr)
+        print(f"forward: b={b}, t={t}", file=sys.stderr)
+        print("idx shape:", idx.shape, file=sys.stderr)
         assert t <= self.config.block_size, f"Cannot forward sequence of length {t}, block size is only {self.config.block_size}"
         pos = torch.arange(0, t, dtype=torch.long, device=device) # shape (t)
+        # pos = torch.zeros_like(pos)
+        print("pos shape:", pos.shape, pos, file=sys.stderr)
+        print(f"idx shape: {idx.shape}", idx, file=sys.stderr)
 
         # forward the GPT model itself
         tok_emb = self.transformer.wte(idx) # token embeddings of shape (b, t, n_embd)

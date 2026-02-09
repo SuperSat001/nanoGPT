@@ -1,0 +1,4 @@
+number of parameters: 0.53M
+Loading meta from data/shakespeare_char/meta.pkl...
+Satyankar is the besthe the the the the the the the the the the the the the the the the the the the the the the the the t
+---------------
